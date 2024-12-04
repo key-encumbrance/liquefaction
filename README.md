@@ -1,7 +1,7 @@
 # Liquefaction 🧊🌀️💧
 - 📃 Read the paper (link will be added once paper is available)
 - **Coming soon:** all implementation code (including wallet, examples) will be open-sourced and released here 🔓️
-- **Coming later this month:** interactive demo dApp on a public test network released
+- **Coming later this month:** interactive demo dApp on a public test network
 
 This repository will contain the implementation of Liquefaction, a smart-contract based, key-encumbered wallet platform that systematically overturns the assumption that private keys are controlled by individuals or individual entities.
 
@@ -16,8 +16,8 @@ Liquefaction enables a wide range of applications:
 - **Dark DAOs**: privately sell or trade DAO votes (which cannot be overridden by the account owner) without making any public DAO token transfers or using public delegation.
 - **Trading locked tokens**: buy or sell locked tokens while keeping the appearance of respecting their vesting schedules.
 - **Mitigating dusting attacks**: prove that you don't own, and never did own, illicit assets that were sent to your account.
-- **Private DAO treasuries**: privately commit funds to a fundraising DAO without transferring any assets on-chain until they are needed.
-- **Token-gated ticketing**: lend or temporarily transfer access to an in-person event or metaverse character to someone else who doesn't own the required token.
+- **Private DAO treasuries**: privately commit funds to a fundraising DAO without transferring any assets on-chain.
+- **Token-gated ticketing**: lend or sell your access to an in-person event or metaverse character to someone who doesn't own the required token.
 - **Soulbound tokens**: sell an account which owns a soulbound token or sell access to signatures proving ownership of such an account.
 
 See the table on page 12 of our paper for more details!
