@@ -1,5 +1,5 @@
 # Liquefaction 🧊🌀️💧
-- 📃 Read the paper (link will be added once paper is available)
+- [📃 Read the paper](http://arxiv.org/abs/2412.02634)
 - **Coming soon:** all implementation code (including wallet, examples) will be open-sourced and released here 🔓️
 - **Coming later this month:** interactive demo dApp on a public test network
 
@@ -20,7 +20,7 @@ Liquefaction enables a wide range of applications:
 - **Token-gated ticketing**: lend or sell your access to an in-person event or metaverse character to someone who doesn't own the required token.
 - **Soulbound tokens**: sell an account which owns a soulbound token or sell access to signatures proving ownership of such an account.
 
-See the table on page 12 of our paper for more details!
+See the [table on page 12](https://arxiv.org/pdf/2412.02634#page.12) of our paper for more details!
 
 ### Getting started
 Coming soon.
