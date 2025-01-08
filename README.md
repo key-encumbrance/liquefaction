@@ -1,6 +1,6 @@
 # Liquefaction 🧊🌀️💧
 - [📃 Read the paper](http://arxiv.org/abs/2412.02634)
-- **Coming soon:** all implementation code (including wallet, examples) will be open-sourced and released here 🔓️
+- **Coming in the next week:** all implementation code (including wallet, examples) will be open-sourced and released here 🔓️
 - **Coming later this month:** interactive demo dApp on a public test network
 
 This repository will contain the implementation of Liquefaction, a smart-contract based, key-encumbered wallet platform that systematically overturns the assumption that private keys are controlled by individuals or individual entities.
