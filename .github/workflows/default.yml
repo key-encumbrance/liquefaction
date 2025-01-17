@@ -1,0 +1,68 @@
+name: Hardhat Tests
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types:
+      - opened
+      - synchronize
+jobs:
+  test:
+    timeout-minutes: 45
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Prettier formatting
+        run: |
+          npx prettier --check .
+
+      - name: TypeScript compiles
+        run: |
+          npx hardhat compile
+          npx tsc --noEmit
+
+      - name: Start Sapphire Localnet
+        run: |
+          docker pull ghcr.io/oasisprotocol/sapphire-localnet
+          docker run -d -p8545:8545 -p8546:8546 ghcr.io/oasisprotocol/sapphire-localnet -test-mnemonic
+
+      - name: Start Kurtosis
+        run: |
+          echo "deb [trusted=yes] https://apt.fury.io/kurtosis-tech/ /" | sudo tee /etc/apt/sources.list.d/kurtosis.list
+          sudo apt update
+          sudo apt install kurtosis-cli
+          kurtosis run github.com/ethpandaops/ethereum-package --args-file ./devnet/network_params.yaml --image-download always --enclave liquefaction-pub-devnet
+
+      - name: Wait for Sapphire Localnet to start
+        run: |
+          while ! docker logs $(docker ps -aq -f ancestor=ghcr.io/oasisprotocol/sapphire-localnet) | grep -q "listening on http://localhost:8545"; do
+            sleep 1
+          done
+
+      - name: Run Hardhat tests
+        run: npx hardhat test --network dev
+
+      - name: Stop Sapphire Localnet
+        if: ${{ always() }}
+        run: |
+          CONTAINER_ID=$(docker ps -aq -f ancestor=ghcr.io/oasisprotocol/sapphire-localnet)
+          if [ -n "$CONTAINER_ID" ]; then
+            docker stop $CONTAINER_ID
+            docker rm $CONTAINER_ID
+          fi
+
+      - name: Stop Kurtosis
+        if: ${{ always() }}
+        run: |
+          kurtosis enclave stop liquefaction-pub-devnet
