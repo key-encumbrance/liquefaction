@@ -88,6 +88,10 @@ Format code with
 npx prettier -w .
 ```
 
+### Attribution
+
+We've released our code under the permissive MIT License. Please ensure you include the copyright notice and permission notice (found in the `LICENSE` file) in copies or substantial portions of the software.
+
 ### Acknowledgements
 
 We use a modified version of [Proveth](https://github.com/lorenzb/proveth), available under the MIT license, to verify transaction inclusion and state proofs inside encumbrance policies.
