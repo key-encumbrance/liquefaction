@@ -2,7 +2,7 @@ name: Hardhat Tests
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     types:
       - opened
