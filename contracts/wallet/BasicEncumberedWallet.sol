@@ -174,9 +174,10 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     }
 
     /**
-     @notice Sign an arbitrary message. NOTE: This message might be an Ethereum transaction or typed data, or anything.
-     @param message The message to be signed.
-     @return DER-encoded signature
+     * @notice Sign an arbitrary message. NOTE: This message might be an Ethereum transaction or typed data, or anything.
+     * @param walletIndex The index of the wallet.
+     * @param message The message to be signed.
+     * @return DER-encoded signature
      */
     function signMessageSelf(uint256 walletIndex, bytes calldata message) public view returns (bytes memory) {
         address account = getWalletAddress(walletIndex);
@@ -184,10 +185,10 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     }
 
     /**
-     @notice Sign an arbitrary ethereum transaction
-     @param account The account that will sign the message.
-     @param message The message to be signed.
-     @return DER-encoded signature
+     * @notice Sign an arbitrary message.
+     * @param account The account whose key will sign the message.
+     * @param message The message to be signed.
+     * @return DER-encoded signature
      */
     function signMessage(address account, bytes calldata message) public view returns (bytes memory) {
         bytes32 asset = BasicEncumberedWallet(address(this)).findAsset(message);
@@ -229,12 +230,12 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     }
 
     /**
-     @notice Sign typed data. NOTE: The contents of the data are not type checked.
-     @param account The account that will sign the typed data.
-     @param domain EIP-712 domain
-     @param dataType Data type according to EIP-712
-     @param data Struct containing the data contents
-     @return DER-encoded signature
+     * @notice Sign typed data. NOTE: The contents of the data are not type checked.
+     * @param account The account that will sign the typed data.
+     * @param domain EIP-712 domain
+     * @param dataType Data type according to EIP-712
+     * @param data Struct containing the data contents
+     * @return DER-encoded signature
      */
     function signTypedData(
         address account,
