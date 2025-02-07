@@ -11,14 +11,15 @@ import {EIP712DomainParams, EIP712Utils} from "../parsing/EIP712Utils.sol";
 
 struct EncumberedAccount {
     address owner;
-    uint256 index;
+    uint256 privateIndex;
 }
 
 contract BasicEncumberedWallet is IEncumberedWallet {
     // Mapping to wallets; access must always be authorized
-    mapping(address => mapping(uint256 => bytes)) private privateKeys;
-    mapping(address => mapping(uint256 => bytes)) private publicKeys;
-    mapping(address => mapping(uint256 => address)) private addresses;
+    mapping(address => mapping(uint256 => uint256)) private selfAccounts;
+    mapping(uint256 => bytes) private privateKeys;
+    mapping(uint256 => bytes) private publicKeys;
+    mapping(uint256 => address) private addresses;
     mapping(address => EncumberedAccount) private accounts;
     mapping(address => mapping(bytes32 => IEncumbrancePolicy)) private encumbranceContract;
     mapping(address => mapping(bytes32 => uint256)) private encumbranceExpiry;
@@ -31,7 +32,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      */
     function createWallet(uint256 index) public returns (bool) {
         // Ensure that an existing wallet is not overwritten
-        if (publicKeys[msg.sender][index].length > 0) {
+        if (selfAccounts[msg.sender][index] != 0) {
             return false;
         }
         bytes memory empty;
@@ -43,12 +44,25 @@ contract BasicEncumberedWallet is IEncumberedWallet {
             seed
         );
         require(publicKey.length > 0, "Public key length is 0");
-        publicKeys[msg.sender][index] = publicKey;
-        privateKeys[msg.sender][index] = privateKey;
+        uint256 privateIndex = uint256(bytes32(publicKey));
+        selfAccounts[msg.sender][index] = privateIndex;
+        publicKeys[privateIndex] = publicKey;
+        privateKeys[privateIndex] = privateKey;
+
         address addr = EthereumUtils.k256PubkeyToEthereumAddress(publicKey);
-        addresses[msg.sender][index] = addr;
-        accounts[addr] = EncumberedAccount({owner: msg.sender, index: index});
+        addresses[privateIndex] = addr;
+        accounts[addr] = EncumberedAccount({owner: msg.sender, privateIndex: privateIndex});
         return true;
+    }
+
+    /**
+     * @notice Get the private index in the index of a sender's wallet
+     * @param walletIndex Index of the wallet
+     */
+    function getPrivateIndex(uint256 walletIndex) private view returns (uint256) {
+        uint256 privateIndex = selfAccounts[msg.sender][walletIndex];
+        require(privateIndex != 0, "Wallet does not exist");
+        return privateIndex;
     }
 
     /**
@@ -56,7 +70,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      * @param walletIndex Index of the wallet
      */
     function getPublicKey(uint256 walletIndex) public view returns (bytes memory) {
-        bytes memory publicKey = publicKeys[msg.sender][walletIndex];
+        bytes memory publicKey = publicKeys[getPrivateIndex(walletIndex)];
         return publicKey;
     }
 
@@ -65,8 +79,8 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      * @param walletIndex Index of the wallet
      */
     function getWalletAddress(uint256 walletIndex) public view returns (address) {
-        address walletAddress = addresses[msg.sender][walletIndex];
-        require(walletAddress != address(0), "Wallet does not exist");
+        address walletAddress = addresses[getPrivateIndex(walletIndex)];
+        require(walletAddress != address(0), "Wallet does not have address");
         return walletAddress;
     }
 
@@ -87,7 +101,8 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     ) public {
         require(block.timestamp < expiry, "Already expired");
         require(address(policy) != address(0), "Policy not specified");
-        address account = getWalletAddress(walletIndex);
+        uint256 privateIndex = getPrivateIndex(walletIndex);
+        address account = addresses[privateIndex];
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 previousExpiry = encumbranceExpiry[account][assets[i]];
             require(previousExpiry == 0 || previousExpiry < block.timestamp, "Already encumbered");
@@ -141,17 +156,12 @@ contract BasicEncumberedWallet is IEncumberedWallet {
 
     /**
      * @notice Sign an authorised message
-     * @param owner The owner of the wallet
-     * @param walletIndex Index of the wallet
+     * @param privateIndex Private index of the wallet
      * @param message The message to be signed
      * @return DER-encoded signature
      */
-    function signMessageAuthorized(
-        address owner,
-        uint256 walletIndex,
-        bytes calldata message
-    ) private view returns (bytes memory) {
-        bytes memory privateKey = privateKeys[owner][walletIndex];
+    function signMessageAuthorized(uint256 privateIndex, bytes calldata message) private view returns (bytes memory) {
+        bytes memory privateKey = privateKeys[privateIndex];
         require(privateKey.length > 0, "Wallet does not exist");
 
         bytes32 asset = BasicEncumberedWallet(address(this)).findAsset(message);
@@ -160,7 +170,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         // Here, as a measure of upgradability, other messages are not allowed.
         require(asset != 0, "Message type not recognized");
 
-        address account = addresses[owner][walletIndex];
+        address account = addresses[privateIndex];
         require(block.timestamp < encumbranceExpiry[account][asset], "Encumbrance expired");
 
         bytes32 messageHash = keccak256(message);
@@ -196,26 +206,24 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         require(address(encumbranceContract[account][asset]) == msg.sender, "Not encumbered by sender");
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
         EncumberedAccount memory acc = accounts[account];
-        return signMessageAuthorized(acc.owner, acc.index, message);
+        return signMessageAuthorized(acc.privateIndex, message);
     }
 
     /**
      * @notice Sign typed data.
-     * @param owner The owner of the wallet
-     * @param walletIndex Index of the wallet
+     * @param privateIndex The internal index of the wallet
      * @param domain EIP-712 domain
      * @param dataType Data type according to EIP-712
      * @param data Struct containing the data contents
      * @return DER-encoded signature
      */
     function signTypedDataAuthorized(
-        address owner,
-        uint256 walletIndex,
+        uint256 privateIndex,
         EIP712DomainParams memory domain,
         string calldata dataType,
         bytes calldata data
     ) private view returns (bytes memory) {
-        bytes memory privateKey = privateKeys[owner][walletIndex];
+        bytes memory privateKey = privateKeys[privateIndex];
         require(privateKey.length > 0, "Wallet does not exist");
 
         // Calculate hash
@@ -250,6 +258,6 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
 
         EncumberedAccount memory acc = accounts[account];
-        return signTypedDataAuthorized(acc.owner, acc.index, domain, dataType, data);
+        return signTypedDataAuthorized(acc.privateIndex, domain, dataType, data);
     }
 }
