@@ -75,6 +75,8 @@ For cross-chain test cases, run `geth` using Kurtosis:
 kurtosis run github.com/ethpandaops/ethereum-package --args-file ./devnet/network_params.yaml --image-download always --enclave liquefaction-pub-devnet
 # To stop the enclave:
 kurtosis enclave stop liquefaction-pub-devnet
+# Destroy the enclave:
+kurtosis enclave rm liquefaction-pub-devnet
 ```
 
 Run test cases:
