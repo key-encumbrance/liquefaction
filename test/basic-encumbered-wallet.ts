@@ -12,6 +12,7 @@ describe("BasicEncumberedWallet", () => {
   async function deployWallet() {
     // Contracts are deployed using the first signer/account by default
     const [firstSigner] = await ethers.getSigners();
+    const secondSigner = sapphire.wrap(ethers.Wallet.createRandom().connect(ethers.provider));
     const owner = sapphire.wrap(firstSigner);
 
     const EIP712Utils = await ethers.getContractFactory("EIP712Utils");
@@ -24,7 +25,7 @@ describe("BasicEncumberedWallet", () => {
     });
     const wallet = await BasicEncumberedWallet.deploy();
 
-    return { owner, wallet: wallet.connect(owner) };
+    return { owner, secondSigner, wallet: wallet.connect(owner) };
   }
 
   async function deployPolicy() {
@@ -194,6 +195,42 @@ describe("BasicEncumberedWallet", () => {
         typedData.message,
       );
       const ethSig = derToEthSignature(derSig, typeHash, walletAddr, "digest");
+      expect(ethSig).to.not.be.undefined;
+    });
+
+    it("Should transfer an account to another party", async () => {
+      const { owner, wallet, policy, secondSigner } = await deployPolicy();
+      await wallet.createWallet(0).then(async (c) => c.wait());
+      const tx1 = await wallet
+        .enterEncumbranceContract(
+          0,
+          [ethers.zeroPadValue("0x1945", 32)],
+          policy.target,
+          getCurrentTime() + 60 * 60,
+          "0x",
+        )
+        .then(async (r) => r.wait());
+
+      // Encumbered messages can't be signed by the owner
+      await expect(
+        wallet.signMessageSelf(0, createEthereumMessage("Hello world")),
+      ).to.be.revertedWith("Not encumbered by sender");
+
+      const encWalletAddress = await wallet.getWalletAddress(0);
+      await wallet.transferAccountOwnership(0, secondSigner.address).then(async (r) => r.wait());
+
+      await expect(wallet.getWalletAddress(0)).to.be.revertedWith("Wallet does not exist");
+
+      const newAttendedWallet = await wallet.connect(secondSigner).getAttendedWallet(0);
+      await expect(
+        wallet.connect(secondSigner).getWalletAddress(newAttendedWallet.index),
+      ).to.eventually.equal(encWalletAddress);
+
+      // Allowed message type succeeds under original owner
+      const encMessage = createEthereumMessage("Encumbered message");
+      const derSig = await policy.connect(owner).signOnBehalf(encWalletAddress, encMessage);
+      // Check signature
+      const ethSig = derToEthSignature(derSig, encMessage, encWalletAddress, "bytes");
       expect(ethSig).to.not.be.undefined;
     });
   });

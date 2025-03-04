@@ -50,6 +50,7 @@ export function derToEthSignature(
     }
 
     if (ethers.dataLength(piece) !== 32) {
+      console.log(signature, messageOrDigest, expectedAddress, type);
       throw new Error("Piece length is " + ethers.dataLength(piece) + ", expected 32");
     }
 
