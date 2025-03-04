@@ -96,6 +96,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      * @param accountIndex Account index of the sender's wallet
      */
     function getPrivateIndex(uint256 accountIndex) private view returns (uint256) {
+        require(msg.sender != address(0), "Sender is zero address");
         uint256 privateIndex = selfAccounts[msg.sender][accountIndex];
         require(privateIndex != 0, "Wallet does not exist");
         require(accounts[addresses[privateIndex]].blockNumber < block.number, "Account too new. Wait one block.");
@@ -107,6 +108,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      * @param accountIndex Account index of the sender's wallet
      */
     function getPublicKey(uint256 accountIndex) public view returns (bytes memory) {
+        require(msg.sender != address(0), "Sender is zero address");
         bytes memory publicKey = publicKeys[getPrivateIndex(accountIndex)];
         return publicKey;
     }
@@ -116,6 +118,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
      * @param accountIndex Account index of the sender's wallet
      */
     function getWalletAddress(uint256 accountIndex) public view returns (address) {
+        require(msg.sender != address(0), "Sender is zero address");
         address walletAddress = addresses[getPrivateIndex(accountIndex)];
         require(walletAddress != address(0), "Wallet does not have address");
         return walletAddress;
