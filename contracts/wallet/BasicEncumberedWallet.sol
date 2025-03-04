@@ -98,6 +98,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     function getPrivateIndex(uint256 accountIndex) private view returns (uint256) {
         uint256 privateIndex = selfAccounts[msg.sender][accountIndex];
         require(privateIndex != 0, "Wallet does not exist");
+        require(accounts[addresses[privateIndex]].blockNumber < block.number, "Account too new. Wait one block.");
         return privateIndex;
     }
 
