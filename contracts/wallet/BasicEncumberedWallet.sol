@@ -86,9 +86,18 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     /**
      * @notice Get an attended wallet struct from an account
      * @param listIndex Index in the sender's attendedWallets array
+     * @return Info about a wallet to which you were assigned access manager
      */
     function getAttendedWallet(uint256 listIndex) public view returns (AttendedWallet memory) {
         return attendedWallets[msg.sender][listIndex];
+    }
+
+    /**
+     * @notice Get the number of attended wallets assigned to your account
+     * @return Number of attended wallets assigned to your account
+     */
+    function getAttendedWalletCount() public view returns (uint256) {
+        return attendedWallets[msg.sender].length;
     }
 
     /**

@@ -211,6 +211,9 @@ describe("BasicEncumberedWallet", () => {
         )
         .then(async (r) => r.wait());
 
+      // No attended wallets, initially
+      await expect(wallet.connect(secondSigner).getAttendedWalletCount()).to.eventually.equal(0);
+
       // Encumbered messages can't be signed by the owner
       await expect(
         wallet.signMessageSelf(0, createEthereumMessage("Hello world")),
@@ -225,6 +228,9 @@ describe("BasicEncumberedWallet", () => {
       await expect(
         wallet.connect(secondSigner).getWalletAddress(newAttendedWallet.index),
       ).to.eventually.equal(encWalletAddress);
+
+      // Second signer now has an attended wallet
+      await expect(wallet.connect(secondSigner).getAttendedWalletCount()).to.eventually.equal(1);
 
       // Allowed message type succeeds under original owner
       const encMessage = createEthereumMessage("Encumbered message");
