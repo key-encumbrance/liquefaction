@@ -45,8 +45,11 @@ export function derToEthSignature(
       if (ethers.dataSlice(piece, 0, 1) !== "0x00") {
         throw new Error("Expected to trim an extra zero byte");
       }
-
       piece = ethers.dataSlice(piece, 1, 33);
+    }
+
+    if (ethers.dataLength(piece) < 32) {
+      piece = ethers.zeroPadValue(piece, 32);
     }
 
     if (ethers.dataLength(piece) !== 32) {
