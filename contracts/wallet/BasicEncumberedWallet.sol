@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
-import "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol";
+import {Sapphire} from "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol";
 import {EthereumUtils} from "@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol";
 
-import "./IEncumbrancePolicy.sol";
-import "./IEncumberedWallet.sol";
+import {IEncumbrancePolicy} from "./IEncumbrancePolicy.sol";
+import {IEncumberedWallet} from "./IEncumberedWallet.sol";
 
 import {EIP712DomainParams, EIP712Utils} from "../parsing/EIP712Utils.sol";
+import {DelayedFinalizationAddress} from "./DelayedFinalizationAddress.sol";
 
 struct EncumberedAccount {
     address owner;
@@ -23,6 +24,8 @@ struct AttendedWallet {
 }
 
 contract BasicEncumberedWallet is IEncumberedWallet {
+    using DelayedFinalizationAddress for mapping(bytes32 => DelayedFinalizationAddress.AddressStatus);
+
     // Mapping to wallets; access must always be authorized
     // Always use getPrivateIndex to verify ownership
     mapping(address => mapping(uint256 => uint256)) private selfAccounts;
@@ -30,7 +33,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     mapping(uint256 => bytes) private publicKeys;
     mapping(uint256 => address) private addresses;
     mapping(address => EncumberedAccount) private accounts;
-    mapping(address => mapping(bytes32 => IEncumbrancePolicy)) private encumbranceContract;
+    mapping(address => mapping(bytes32 => DelayedFinalizationAddress.AddressStatus)) private encumbranceContract;
     mapping(address => mapping(bytes32 => uint256)) private encumbranceExpiry;
 
     // Append-only list of wallets created/accepted
@@ -177,7 +180,8 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 previousExpiry = encumbranceExpiry[account][assets[i]];
             require(previousExpiry == 0 || previousExpiry < block.timestamp, "Already encumbered");
-            encumbranceContract[account][assets[i]] = policy;
+
+            encumbranceContract[account].updateAddress(assets[i], address(policy));
             encumbranceExpiry[account][assets[i]] = expiry;
         }
 
@@ -274,7 +278,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     function signMessage(address account, bytes calldata message) public view returns (bytes memory) {
         bytes32 asset = BasicEncumberedWallet(address(this)).findAsset(message);
         require(asset != 0, "Asset not found");
-        require(address(encumbranceContract[account][asset]) == msg.sender, "Not encumbered by sender");
+        require(encumbranceContract[account].isFinalizedAddress(asset, msg.sender), "Not encumbered by sender");
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
         EncumberedAccount memory acc = accounts[account];
         return signMessageAuthorized(acc.privateIndex, message);
@@ -325,7 +329,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         bytes32 asset = BasicEncumberedWallet(address(this)).findEip712Asset(domain, dataType, data);
         require(asset != 0, "Typed data message type not recognized");
 
-        require(address(encumbranceContract[account][asset]) == msg.sender, "Not encumbered by sender");
+        require(encumbranceContract[account].isFinalizedAddress(asset, msg.sender), "Not encumbered by sender");
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
 
         EncumberedAccount memory acc = accounts[account];
