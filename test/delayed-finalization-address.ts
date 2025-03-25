@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { type Signer } from "ethers";
 
-import { DelayedFinalizationAddressTest } from "../typechain-types/contracts/DelayedFinalizationAddressTest";
+import { DelayedFinalizationAddressTest } from "../typechain-types/contracts/wallet/DelayedFinalizationAddressTest";
 
 describe("DelayedFinalizationAddressTest", function () {
   let delayedFinalizationAddressTest: DelayedFinalizationAddressTest;
