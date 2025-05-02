@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.8.0 <0.9.0;
 
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Sapphire} from "@oasisprotocol/sapphire-contracts/contracts/Sapphire.sol";
 import {EthereumUtils} from "@oasisprotocol/sapphire-contracts/contracts/EthereumUtils.sol";
 
@@ -9,6 +10,7 @@ import {IEncumberedWallet} from "./IEncumberedWallet.sol";
 
 import {EIP712DomainParams, EIP712Utils} from "../parsing/EIP712Utils.sol";
 import {DelayedFinalizationAddress} from "./DelayedFinalizationAddress.sol";
+import {DelayedFinalizationBool} from "./DelayedFinalizationBool.sol";
 
 struct EncumberedAccount {
     address owner;
@@ -25,6 +27,7 @@ struct AttendedWallet {
 
 contract BasicEncumberedWallet is IEncumberedWallet {
     using DelayedFinalizationAddress for DelayedFinalizationAddress.AddressStatus;
+    using DelayedFinalizationBool for DelayedFinalizationBool.BoolStatus;
 
     // Mapping to wallets; access must always be authorized
     // Always use getPrivateIndex to verify ownership
@@ -36,8 +39,19 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     mapping(address => mapping(bytes32 => DelayedFinalizationAddress.AddressStatus)) private encumbranceContract;
     mapping(address => mapping(bytes32 => uint256)) private encumbranceExpiry;
 
+    // Key export
+    Sapphire.Curve25519SecretKey private keyExportPrivateKey;
+    Sapphire.Curve25519PublicKey public keyExportPublicKey;
+    mapping(uint256 => DelayedFinalizationBool.BoolStatus) private keyExportRequested;
+    mapping(uint256 => Sapphire.Curve25519PublicKey) private keyExportCounterparty;
+    mapping(uint256 => uint256) private maxEncumbranceExpiry;
+
     // Append-only list of wallets created/accepted
     mapping(address => AttendedWallet[]) private attendedWallets;
+
+    constructor() {
+        (keyExportPublicKey, keyExportPrivateKey) = Sapphire.generateCurve25519KeyPair("key export");
+    }
 
     /**
      * @dev Add an attended account to the owner's list
@@ -145,6 +159,9 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         require(newOwner != address(0), "New owner cannot be the zero address");
         uint256 privateIndex = getPrivateIndex(accountIndex);
 
+        // Key export should not have happened at this stage
+        require(!keyExportRequested[privateIndex]._bool, "Key export has been requested");
+
         // Change the account ownership
         selfAccounts[msg.sender][accountIndex] = 0;
         uint256 newOwnerAccountIndex = uint256(bytes32(Sapphire.randomBytes(32, bytes.concat(bytes20(newOwner)))));
@@ -176,6 +193,10 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         require(block.timestamp < expiry, "Already expired");
         require(address(policy) != address(0), "Policy not specified");
         uint256 privateIndex = getPrivateIndex(accountIndex);
+
+        // If the key was exported, fail
+        require(!keyExportRequested[privateIndex]._bool, "Key export has been requested");
+
         address account = addresses[privateIndex];
         for (uint256 i = 0; i < assets.length; i++) {
             uint256 previousExpiry = encumbranceExpiry[account][assets[i]];
@@ -184,6 +205,9 @@ contract BasicEncumberedWallet is IEncumberedWallet {
             encumbranceContract[account][assets[i]].updateAddress(address(policy));
             encumbranceExpiry[account][assets[i]] = expiry;
         }
+
+        // Update max account-wide expiry time
+        maxEncumbranceExpiry[privateIndex] = Math.max(maxEncumbranceExpiry[privateIndex], expiry);
 
         // Notify the policy that encumbrance has begun
         policy.notifyEncumbranceEnrollment(msg.sender, account, assets, expiry, data);
@@ -334,5 +358,79 @@ contract BasicEncumberedWallet is IEncumberedWallet {
 
         EncumberedAccount memory acc = accounts[account];
         return signTypedDataAuthorized(acc.privateIndex, domain, dataType, data);
+    }
+
+    // Key export
+
+    /**
+     * @notice Get the public key of the counterparty that has requested a key export.
+     * @param accountIndex The account index of the sender's wallet.
+     * @return The public key of the counterparty.
+     */
+    function getExportedKeyCounterparty(uint256 accountIndex) public view returns (Sapphire.Curve25519PublicKey) {
+        uint256 privateIndex = getPrivateIndex(accountIndex);
+        return keyExportCounterparty[privateIndex];
+    }
+
+    /**
+     * @notice Request the export of the private key for a specific wallet.
+     * @param accountIndex The account index of the sender's wallet.
+     * @param counterpartyPubKey The Curve25519 public key of the recipient of the key.
+     * @param ciphertext The ciphertext of the ABI-encoded message ("Key export", encumberedAddress).
+     * @param nonce The nonce used for encryption by the counterparty.
+     */
+    function requestKeyExport(
+        uint256 accountIndex,
+        Sapphire.Curve25519PublicKey counterpartyPubKey,
+        bytes memory ciphertext,
+        bytes32 nonce
+    ) public {
+        uint256 privateIndex = getPrivateIndex(accountIndex);
+        require(block.timestamp > maxEncumbranceExpiry[privateIndex], "Key still enrolled in an encumbrance policy");
+        require(!keyExportRequested[privateIndex]._bool, "Key export already requested");
+
+        // Mark that the key export has been requested
+        keyExportRequested[privateIndex].updateBool(true);
+
+        // Verify the counterparty has control of the key
+        bytes32 sharedKey = Sapphire.deriveSymmetricKey(counterpartyPubKey, keyExportPrivateKey);
+        bytes memory tag = Sapphire.decrypt(sharedKey, nonce, ciphertext, new bytes(0));
+        require(
+            keccak256(tag) == keccak256(abi.encode("Key export", getWalletAddress(accountIndex))),
+            "Incorrect decrypted message"
+        );
+
+        // Set the counterparty
+        keyExportCounterparty[privateIndex] = counterpartyPubKey;
+    }
+
+    /**
+     * @notice Export the private key for a specific wallet.
+     * @param accountIndex The account index of the sender's wallet.
+     * @return ciphertext The encrypted private key.
+     * @return nonce The nonce used for encryption.
+     */
+    function exportKey(uint256 accountIndex) public view returns (bytes memory ciphertext, bytes32 nonce) {
+        uint256 privateIndex = getPrivateIndex(accountIndex);
+        require(keyExportRequested[privateIndex].getFinalizedBool(), "Finalized key export request required");
+        bytes32 sharedKey = Sapphire.deriveSymmetricKey(keyExportCounterparty[privateIndex], keyExportPrivateKey);
+        nonce = bytes32(Sapphire.randomBytes(32, "key export"));
+        ciphertext = Sapphire.encrypt(sharedKey, nonce, privateKeys[privateIndex], new bytes(0));
+    }
+
+    /**
+     * @notice Destroy the exported private key for a specific wallet. Only
+     * call this function once you have successfully decrypted and saved the
+     * private key!
+     * @param accountIndex The account index of the sender's wallet.
+     */
+    function destroyExportedKey(uint256 accountIndex) public {
+        uint256 privateIndex = getPrivateIndex(accountIndex);
+        require(keyExportRequested[privateIndex].getFinalizedBool(), "Finalized key export request required");
+
+        // Overwrite storage slots with other bytes
+        privateKeys[privateIndex] = hex"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        hex"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        hex"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
     }
 }

@@ -1,11 +1,18 @@
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { type Signer } from "ethers";
 import * as sapphire from "@oasisprotocol/sapphire-paratime";
 import { createEthereumMessage, derToEthSignature } from "../scripts/ethereum-signatures";
 import { getDomainParams } from "../scripts/eip712-builder";
+import { BasicEncumberedWallet } from "../typechain-types/contracts/wallet/BasicEncumberedWallet";
+import { MinimalUpgradableWalletReceiver } from "../typechain-types/contracts/wallet/MinimalUpgradableWalletReceiver";
 
 function getCurrentTime() {
   return Math.floor(Date.now() / 1000);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 describe("BasicEncumberedWallet", () => {
@@ -238,6 +245,134 @@ describe("BasicEncumberedWallet", () => {
       // Check signature
       const ethSig = derToEthSignature(derSig, encMessage, encWalletAddress, "bytes");
       expect(ethSig).to.not.be.undefined;
+    });
+  });
+
+  describe("Key export", () => {
+    async function deployMinimalUpgradableWalletReceiver() {
+      const receiverFactory = await ethers.getContractFactory("MinimalUpgradableWalletReceiver");
+      const receiver = await receiverFactory.deploy();
+      return receiver;
+    }
+
+    let wallet: BasicEncumberedWallet;
+    let owner: Signer;
+    let minimalUpgradableWalletReceiver: MinimalUpgradableWalletReceiver;
+    let receiverPk: string;
+    let receiverSk: string;
+
+    beforeEach(async () => {
+      ({ owner, wallet } = await deployWallet());
+      minimalUpgradableWalletReceiver = await deployMinimalUpgradableWalletReceiver();
+      await minimalUpgradableWalletReceiver.waitForDeployment();
+      ({ pk: receiverPk, sk: receiverSk } =
+        await minimalUpgradableWalletReceiver.generateKeyPair());
+    });
+
+    it("should request key export successfully", async () => {
+      const accountIndex = 0;
+      await wallet.createWallet(accountIndex).then(async (c) => c.wait());
+      const walletAddress = await wallet.getWalletAddress(accountIndex);
+
+      console.log("Getting export public key...");
+      const keyExportPubKey = await wallet.keyExportPublicKey();
+
+      console.log("Encrypting key export message...");
+      const keyExportMessage = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string", "address"],
+        ["Key export", walletAddress],
+      );
+      const { ciphertext: keyExportMessageCiphertext, nonce: keyExportMessageNonce } =
+        await minimalUpgradableWalletReceiver.encrypt(
+          keyExportMessage,
+          receiverSk,
+          keyExportPubKey,
+        );
+
+      console.log("Requesting key export...");
+      await wallet
+        .requestKeyExport(
+          accountIndex,
+          receiverPk,
+          keyExportMessageCiphertext,
+          keyExportMessageNonce,
+        )
+        .then((r) => r.wait());
+      const { ciphertext: keyCiphertext, nonce: keyNonce } = await wallet.exportKey(accountIndex);
+
+      const exportedKeyCounterparty = await wallet.getExportedKeyCounterparty(accountIndex);
+      expect(exportedKeyCounterparty).to.equal(receiverPk);
+
+      // Decrypt the key
+      console.log("Decrypting the key...");
+      const key = await minimalUpgradableWalletReceiver.decrypt(
+        keyCiphertext,
+        keyNonce,
+        keyExportPubKey,
+        receiverSk,
+      );
+
+      expect(new ethers.Wallet(key).address).to.equal(walletAddress);
+    });
+
+    it("should not successfully request key export if enrolled in a policy", async () => {
+      const accountIndex = 0;
+      await wallet.createWallet(accountIndex).then(async (c) => c.wait());
+      const walletAddress = await wallet.getWalletAddress(accountIndex);
+
+      // Enroll in an encumbrance policy
+      const ExampleEncumbrancePolicy = await ethers.getContractFactory("ExampleEncumbrancePolicy");
+      const policy = await ExampleEncumbrancePolicy.deploy(wallet.target);
+      await policy.waitForDeployment();
+
+      // Get encrypted key export message
+      const keyExportPubKey = await wallet.keyExportPublicKey();
+      const keyExportMessage = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["string", "address"],
+        ["Key export", walletAddress],
+      );
+      const { ciphertext: keyExportMessageCiphertext, nonce: keyExportMessageNonce } =
+        await minimalUpgradableWalletReceiver.encrypt(
+          keyExportMessage,
+          receiverSk,
+          keyExportPubKey,
+        );
+
+      console.log("Entering encumbrance contract...");
+      await wallet
+        .enterEncumbranceContract(
+          0,
+          [ethers.zeroPadValue("0x1945", 32), ethers.zeroPadValue("0x1946", 32)],
+          policy.target,
+          getCurrentTime() + 30,
+          "0x",
+        )
+        .then((r) => r.wait());
+
+      // Key export should fail while still enrolled
+      console.log("Requesting key export...");
+      await expect(
+        wallet.requestKeyExport.staticCall(
+          accountIndex,
+          receiverPk,
+          keyExportMessageCiphertext,
+          keyExportMessageNonce,
+        ),
+      ).to.be.revertedWith("Key still enrolled in an encumbrance policy");
+
+      // Wait 30 seconds and try again; this time it should succeed
+      console.log("Waiting 30 seconds to try again... (expected)");
+      await sleep(30 * 1000);
+      await wallet
+        .requestKeyExport(
+          accountIndex,
+          receiverPk,
+          keyExportMessageCiphertext,
+          keyExportMessageNonce,
+        )
+        .then((r) => r.wait());
+      const exportedKeyCounterparty = await wallet.getExportedKeyCounterparty(accountIndex);
+      expect(exportedKeyCounterparty).to.equal(receiverPk);
     });
   });
 });

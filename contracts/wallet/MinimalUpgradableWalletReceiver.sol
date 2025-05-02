@@ -9,7 +9,7 @@ contract MinimalUpgradableWalletReceiver {
         (pk, sk) = Sapphire.generateCurve25519KeyPair(new bytes(0));
     }
 
-    function decryptKeyFromRequest(
+    function decrypt(
         bytes memory ciphertext,
         bytes32 nonce,
         Sapphire.Curve25519PublicKey peerPublicKey,
@@ -19,14 +19,13 @@ contract MinimalUpgradableWalletReceiver {
         decrypted = Sapphire.decrypt(sharedKey, nonce, ciphertext, new bytes(0));
     }
 
-    function encryptPrivateKey(
-        bytes memory _privateKey,
+    function encrypt(
+        bytes memory message,
+        Sapphire.Curve25519SecretKey secretKey,
         Sapphire.Curve25519PublicKey curve25519PublicKey
-    ) public view returns (bytes memory ciphertext, bytes32 nonce, Sapphire.Curve25519PublicKey mySharedPubKey) {
-        Sapphire.Curve25519SecretKey sk;
-        (mySharedPubKey, sk) = Sapphire.generateCurve25519KeyPair(new bytes(0));
-        bytes32 sharedKey = Sapphire.deriveSymmetricKey(curve25519PublicKey, sk);
+    ) public view returns (bytes memory ciphertext, bytes32 nonce) {
+        bytes32 sharedKey = Sapphire.deriveSymmetricKey(curve25519PublicKey, secretKey);
         nonce = bytes32(Sapphire.randomBytes(32, new bytes(0)));
-        ciphertext = Sapphire.encrypt(sharedKey, nonce, _privateKey, new bytes(0));
+        ciphertext = Sapphire.encrypt(sharedKey, nonce, message, new bytes(0));
     }
 }
