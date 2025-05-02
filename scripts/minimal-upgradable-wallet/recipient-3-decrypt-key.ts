@@ -53,7 +53,7 @@ async function main() {
     }
   }
 
-  let decryptedKey = await reciever.decryptKeyFromRequest(
+  let decryptedKey = await reciever.decrypt(
     keyData.ciphertext,
     keyData.nonce,
     keyData.sharedPubKey,
