@@ -15,50 +15,37 @@ library DelayedFinalizationAddress {
     }
 
     /**
-     * @notice Sets a new address as pending for a given key, assuming the update.
-     * @param addresses Storage mapping for all addresses (pending and finalized)
-     * @param key The generic key (e.g., "admin", "controller", etc.)
+     * @notice Sets a new address as pending.
+     * @param addressStatus Address status in storage
      * @param newAddress The new address to set
      */
-    function updateAddress(
-        mapping(bytes32 => AddressStatus) storage addresses,
-        bytes32 key,
-        address newAddress
-    ) internal {
-        require(addresses[key].pendingBlockNumber < block.number, "Address: Multiple changes in the same block");
-        addresses[key] = AddressStatus(newAddress, block.number);
+    function updateAddress(AddressStatus storage addressStatus, address newAddress) internal {
+        require(addressStatus.pendingBlockNumber < block.number, "Address: Multiple changes in the same block");
+        addressStatus._address = newAddress;
+        addressStatus.pendingBlockNumber = block.number;
     }
 
     /**
      * @notice Gets the finalized address for a given key. Reverts if the address is still pending finalization.
-     * @param addresses Storage mapping for all addresses (pending and finalized)
-     * @param key The generic key
+     * @param addressStatus Address status in storage
      * @return The finalized address
      */
-    function getFinalizedAddress(
-        mapping(bytes32 => AddressStatus) storage addresses,
-        bytes32 key
-    ) internal view returns (address) {
-        require(addresses[key].pendingBlockNumber < block.number, "Address is pending finalization");
-        return addresses[key]._address;
+    function getFinalizedAddress(AddressStatus storage addressStatus) internal view returns (address) {
+        require(addressStatus.pendingBlockNumber < block.number, "Address is pending finalization");
+        return addressStatus._address;
     }
 
     /**
      * @notice Checks if an address is finalized for a given key without returning the address.
      *         Useful for access control checks.
-     * @param addresses Storage mapping for all addresses (pending and finalized)
-     * @param key The generic key
+     * @param addressStatus Address status in storage
      * @param addr The address to check
      * @return True if the address is finalized for the key, false otherwise
      */
-    function isFinalizedAddress(
-        mapping(bytes32 => AddressStatus) storage addresses,
-        bytes32 key,
-        address addr
-    ) internal view returns (bool) {
-        if (addresses[key].pendingBlockNumber >= block.number) {
+    function isFinalizedAddress(AddressStatus storage addressStatus, address addr) internal view returns (bool) {
+        if (addressStatus.pendingBlockNumber >= block.number) {
             return false; // Pending finalization, don't reveal
         }
-        return addresses[key]._address == addr;
+        return addressStatus._address == addr;
     }
 }

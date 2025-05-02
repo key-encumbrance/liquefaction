@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {DelayedFinalizationAddress} from "./DelayedFinalizationAddress.sol";
 
 contract DelayedFinalizationAddressTest {
-    using DelayedFinalizationAddress for mapping(bytes32 => DelayedFinalizationAddress.AddressStatus);
+    using DelayedFinalizationAddress for DelayedFinalizationAddress.AddressStatus;
 
     // Storage mapping for testing addresses
     mapping(bytes32 => DelayedFinalizationAddress.AddressStatus) public testAddresses;
@@ -18,7 +18,7 @@ contract DelayedFinalizationAddressTest {
      * @param newAddress The new address to set
      */
     function updateTestAddress(bytes32 key, address newAddress) public {
-        testAddresses.updateAddress(key, newAddress);
+        testAddresses[key].updateAddress(newAddress);
         emit AddressUpdated(key, newAddress, testAddresses[key].pendingBlockNumber);
     }
 
@@ -28,7 +28,7 @@ contract DelayedFinalizationAddressTest {
      * @return The finalized address
      */
     function getFinalizedTestAddress(bytes32 key) public view returns (address) {
-        return testAddresses.getFinalizedAddress(key);
+        return testAddresses[key].getFinalizedAddress();
     }
 
     /**
@@ -38,7 +38,7 @@ contract DelayedFinalizationAddressTest {
      * @return True if the address is finalized for the key, false otherwise
      */
     function isFinalizedTestAddress(bytes32 key, address addr) public view returns (bool) {
-        return testAddresses.isFinalizedAddress(key, addr);
+        return testAddresses[key].isFinalizedAddress(addr);
     }
 
     /**
@@ -47,8 +47,9 @@ contract DelayedFinalizationAddressTest {
      * @param newAddress The new address to set
      */
     function updateAndGetImmediately(bytes32 key, address newAddress) public {
-        testAddresses.updateAddress(key, newAddress);
-        address finalizedAddress = testAddresses.getFinalizedAddress(key); // Attempt to get immediately
+        testAddresses[key].updateAddress(newAddress);
+        // Attempt to get immediately
+        address finalizedAddress = testAddresses[key].getFinalizedAddress();
         emit AddressUpdated(key, finalizedAddress, testAddresses[key].pendingBlockNumber);
     }
 }

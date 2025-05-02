@@ -24,7 +24,7 @@ struct AttendedWallet {
 }
 
 contract BasicEncumberedWallet is IEncumberedWallet {
-    using DelayedFinalizationAddress for mapping(bytes32 => DelayedFinalizationAddress.AddressStatus);
+    using DelayedFinalizationAddress for DelayedFinalizationAddress.AddressStatus;
 
     // Mapping to wallets; access must always be authorized
     // Always use getPrivateIndex to verify ownership
@@ -181,7 +181,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
             uint256 previousExpiry = encumbranceExpiry[account][assets[i]];
             require(previousExpiry == 0 || previousExpiry < block.timestamp, "Already encumbered");
 
-            encumbranceContract[account].updateAddress(assets[i], address(policy));
+            encumbranceContract[account][assets[i]].updateAddress(address(policy));
             encumbranceExpiry[account][assets[i]] = expiry;
         }
 
@@ -278,7 +278,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
     function signMessage(address account, bytes calldata message) public view returns (bytes memory) {
         bytes32 asset = BasicEncumberedWallet(address(this)).findAsset(message);
         require(asset != 0, "Asset not found");
-        require(encumbranceContract[account].isFinalizedAddress(asset, msg.sender), "Not encumbered by sender");
+        require(encumbranceContract[account][asset].isFinalizedAddress(msg.sender), "Not encumbered by sender");
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
         EncumberedAccount memory acc = accounts[account];
         return signMessageAuthorized(acc.privateIndex, message);
@@ -329,7 +329,7 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         bytes32 asset = BasicEncumberedWallet(address(this)).findEip712Asset(domain, dataType, data);
         require(asset != 0, "Typed data message type not recognized");
 
-        require(encumbranceContract[account].isFinalizedAddress(asset, msg.sender), "Not encumbered by sender");
+        require(encumbranceContract[account][asset].isFinalizedAddress(msg.sender), "Not encumbered by sender");
         require(block.timestamp < encumbranceExpiry[account][asset], "Rental expired");
 
         EncumberedAccount memory acc = accounts[account];
