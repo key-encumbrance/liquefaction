@@ -53,6 +53,22 @@ contract BasicEncumberedWallet is IEncumberedWallet {
         (keyExportPublicKey, keyExportPrivateKey) = Sapphire.generateCurve25519KeyPair("key export");
     }
 
+    // TODO: Develop better batch account request system
+    /**
+     * @notice Get the last attended wallet's address and index
+     * @return walletAddress The address of the last attended wallet
+     * @return walletIndex The index of the last attended wallet
+     * @return count The number of attended wallets
+     */
+    function getLastAttendedWallet() public view returns (address walletAddress, uint256 walletIndex, uint256 count) {
+        count = attendedWallets[msg.sender].length;
+        if (count == 0) {
+            return (address(0), 0, 0);
+        }
+        AttendedWallet memory lastWallet = attendedWallets[msg.sender][count - 1];
+        return (getWalletAddress(lastWallet.index), lastWallet.index, count);
+    }
+
     /**
      * @dev Add an attended account to the owner's list
      * @param owner Address whose list should change
