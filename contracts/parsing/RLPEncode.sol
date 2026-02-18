@@ -176,7 +176,10 @@ library RLPEncode {
             src += 32;
         }
 
-        uint mask = 256 ** (32 - len) - 1;
+        uint mask;
+        unchecked {
+            mask = 256 ** (32 - len) - 1;
+        }
         assembly {
             let srcpart := and(mload(src), not(mask))
             let destpart := and(mload(dest), mask)
