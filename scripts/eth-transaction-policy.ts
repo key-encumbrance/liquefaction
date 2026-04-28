@@ -24,7 +24,7 @@ const publicNetwork = {
   chainId: 30121,
   name: "publicNetwork",
 };
-const publicProvider = new ethers.JsonRpcProvider("http://127.0.0.1:32002", publicNetwork);
+const publicProvider = new ethers.JsonRpcProvider("http://127.0.0.1:32003", publicNetwork);
 
 /*async function getAccounts() {
   // Connect the wallet to the Holesky provider
