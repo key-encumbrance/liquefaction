@@ -40,7 +40,7 @@ const publicNetwork = {
   chainId: 30121,
   name: "publicNetwork",
 };
-const publicProvider = new ethers.JsonRpcProvider("http://127.0.0.1:32002", publicNetwork);
+const publicProvider = new ethers.JsonRpcProvider("http://127.0.0.1:32003", publicNetwork);
 
 function throwIfEmpty<T>(val: T | undefined | null, valStr: string): T {
   if (val === undefined || val === null) {
