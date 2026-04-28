@@ -25,7 +25,7 @@ const oasisTestChainId = 0x5a_fd;
 const ethTestChainId = 30_121;
 
 // The "public" network, i.e. Ethereum network
-const publicProvider = new ethers.JsonRpcProvider("http://localhost:32002");
+const publicProvider = new ethers.JsonRpcProvider("http://localhost:32003");
 // The storage slot of the balances mapping in our TestERC20 token is 0
 const daoTokenBalanceMappingSlot = "0x00";
 // The withdrawals slot in the DD token contract is 11 on the current version of Solidity and OpenZeppelin
